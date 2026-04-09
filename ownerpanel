@@ -1,0 +1,258 @@
+--====================================================
+-- 🔐 OWNER + KEY SYSTEM (STABLE)
+--====================================================
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+local OWNER_ID = 123456789 -- CHANGE THIS
+
+local Keys = {
+    ["OWNER-KEY-123"] = true,
+    ["VIP-KEY-ABC"] = true
+}
+
+local KeyFile = "OwnerPanelKey.txt"
+
+local function SaveKey(key)
+    pcall(function()
+        if writefile then writefile(KeyFile, key) end
+    end)
+end
+
+local function LoadKey()
+    local key
+    pcall(function()
+        if readfile and isfile and isfile(KeyFile) then
+            key = readfile(KeyFile)
+        end
+    end)
+    return key
+end
+
+local function HasAccess()
+    if LocalPlayer.UserId == OWNER_ID then return true end
+    local saved = LoadKey()
+    if saved and Keys[saved] then return true end
+    return false
+end
+
+-- SAFE KEY UI (NO FREEZE)
+if not HasAccess() then
+    local gui = Instance.new("ScreenGui")
+    pcall(function() gui.Parent = game.CoreGui end)
+
+    local frame = Instance.new("Frame", gui)
+    frame.Size = UDim2.new(0,300,0,160)
+    frame.Position = UDim2.new(0.5,-150,0.5,-80)
+    frame.BackgroundColor3 = Color3.fromRGB(25,25,25)
+
+    local title = Instance.new("TextLabel", frame)
+    title.Size = UDim2.new(1,0,0,30)
+    title.Text = "Enter Key"
+    title.BackgroundTransparency = 1
+    title.TextColor3 = Color3.new(1,1,1)
+
+    local box = Instance.new("TextBox", frame)
+    box.Size = UDim2.new(1,-20,0,40)
+    box.Position = UDim2.new(0,10,0,40)
+    box.PlaceholderText = "Enter Key..."
+
+    local btn = Instance.new("TextButton", frame)
+    btn.Size = UDim2.new(1,-20,0,40)
+    btn.Position = UDim2.new(0,10,0,100)
+    btn.Text = "Submit"
+
+    local passed = false
+
+    btn.MouseButton1Click:Connect(function()
+        if Keys[box.Text] then
+            SaveKey(box.Text)
+            passed = true
+            gui:Destroy()
+        else
+            box.Text = "Wrong Key"
+        end
+    end)
+
+    repeat task.wait() until passed
+end
+
+--====================================================
+-- 📦 SAFE LOAD LIBS
+--====================================================
+
+local Rayfield
+pcall(function()
+    Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+end)
+
+if not Rayfield then
+    warn("Rayfield failed to load")
+    return
+end
+
+local ESP
+pcall(function()
+    ESP = loadstring(game:HttpGet("https://raw.githubusercontent.com/linemaster2/esp-library/main/library.lua"))()
+end)
+
+--====================================================
+-- 🎮 SERVICES
+--====================================================
+
+local Camera = workspace.CurrentCamera
+local UIS = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+--====================================================
+-- VARIABLES
+--====================================================
+
+local aimbotEnabled = false
+local smoothAim = false
+local aiming = false
+local smoothness = 0.15
+local aimPart = "Head"
+local teamCheck = false
+local IJ = false
+
+--====================================================
+-- AIM SYSTEM
+--====================================================
+
+local function getClosest()
+    local closest, dist = nil, math.huge
+
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild(aimPart) then
+            if teamCheck and plr.Team == LocalPlayer.Team then continue end
+
+            local pos, visible = Camera:WorldToViewportPoint(plr.Character[aimPart].Position)
+
+            if visible then
+                local diff = (Vector2.new(pos.X, pos.Y) - UIS:GetMouseLocation()).Magnitude
+                if diff < dist then
+                    dist = diff
+                    closest = plr.Character
+                end
+            end
+        end
+    end
+
+    return closest
+end
+
+UIS.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton2 then
+        aiming = true
+    end
+end)
+
+UIS.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton2 then
+        aiming = false
+    end
+end)
+
+RunService.RenderStepped:Connect(function()
+    if not aimbotEnabled then return end
+
+    local target = getClosest()
+    if not target or not target:FindFirstChild(aimPart) then return end
+
+    local targetCF = CFrame.new(Camera.CFrame.Position, target[aimPart].Position)
+
+    if smoothAim then
+        Camera.CFrame = Camera.CFrame:Lerp(targetCF, smoothness)
+    else
+        if aiming then
+            Camera.CFrame = targetCF
+        end
+    end
+end)
+
+--====================================================
+-- INFINITE JUMP
+--====================================================
+
+UIS.JumpRequest:Connect(function()
+    if IJ and LocalPlayer.Character then
+        LocalPlayer.Character:FindFirstChildOfClass("Humanoid"):ChangeState("Jumping")
+    end
+end)
+
+--====================================================
+-- 🧠 UI
+--====================================================
+
+local Window = Rayfield:CreateWindow({
+    Name = "OWNER PANEL",
+    LoadingTitle = "Loading...",
+    LoadingSubtitle = "Stable Build",
+    Theme = "Ocean",
+    ConfigurationSaving = {Enabled = true, FileName = "OwnerPanel"}
+})
+
+-- AIMBOT TAB
+local AimbotTab = Window:CreateTab("Aimbot", 4483362458)
+
+AimbotTab:CreateToggle({
+    Name = "Enable Aimbot",
+    CurrentValue = false,
+    Flag = "aimbot_toggle",
+    Callback = function(v) aimbotEnabled = v end
+})
+
+AimbotTab:CreateToggle({
+    Name = "Smooth Aim",
+    CurrentValue = false,
+    Flag = "smooth_toggle",
+    Callback = function(v) smoothAim = v end
+})
+
+AimbotTab:CreateSlider({
+    Name = "Smoothness",
+    Range = {1,100},
+    Increment = 1,
+    CurrentValue = 15,
+    Flag = "smooth_slider",
+    Callback = function(v) smoothness = v/100 end
+})
+
+-- ESP TAB
+local ESPTab = Window:CreateTab("ESP", 4483362458)
+
+if ESP then
+    ESPTab:CreateToggle({
+        Name = "Enable ESP",
+        CurrentValue = false,
+        Callback = function(v) ESP.Enabled = v end
+    })
+end
+
+-- PLAYER TAB
+local PlayerTab = Window:CreateTab("Player", 4483362458)
+
+PlayerTab:CreateToggle({
+    Name = "Infinite Jump",
+    CurrentValue = false,
+    Callback = function(v) IJ = v end
+})
+
+PlayerTab:CreateSlider({
+    Name = "WalkSpeed",
+    Range = {16,100},
+    Increment = 1,
+    CurrentValue = 16,
+    Callback = function(v)
+        if LocalPlayer.Character then
+            LocalPlayer.Character.Humanoid.WalkSpeed = v
+        end
+    end
+})
+
+-- INFO TAB
+local InfoTab = Window:CreateTab("Info", 4483362458)
+InfoTab:CreateLabel("Owner Panel Loaded")
+InfoTab:CreateLabel("Stable Version")
